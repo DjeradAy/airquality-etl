@@ -11,71 +11,71 @@ Les stocker dans BigQuery
 
 Les visualiser via Looker Studio
 
-🎯 Objectif métier : fournir une solution fiable et scalable pour analyser la pollution de l’air dans les villes européennes et permettre des usages analytiques, décisionnels ou commerciaux.
+🎯 Objectif métier
+Fournir une solution fiable, scalable et automatisée pour analyser la pollution de l’air dans les villes européennes et permettre des usages analytiques, décisionnels et commerciaux.
 
 🧠 Pourquoi ce projet est important ?
 
 La pollution de l’air est un enjeu majeur pour :
 
-la santé publique
+🏥 la santé publique
 
-les collectivités locales
+🏛️ les collectivités locales
 
-les entreprises
+🏢 les entreprises
 
-les citoyens
+👥 les citoyens
 
-Notre solution permet par exemple :
+Notre solution permet notamment :
 
 de comparer la pollution entre villes
 
-de suivre l’évolution temporelle
+de suivre son évolution dans le temps
 
 d’identifier des zones à risque
 
 de vendre des indicateurs environnementaux à des acteurs publics ou privés
 
 🏗️ Architecture globale
-           ┌───────────────┐
-           │ Cloud Scheduler│
-           └───────┬───────┘
-                   │ (HTTP)
-                   ▼
-        ┌─────────────────────┐
-        │ Cloud Function EXTRACT│
-        │ Open-Meteo API       │
-        │ GeoNames cities      │
-        └─────────┬───────────┘
-                  │
-                  ▼
-        ┌─────────────────────┐
-        │  Cloud Storage (GCS) │
-        │  raw/YYYY-MM-DD/     │
-        │  JSONL.GZ            │
-        └─────────┬───────────┘
-                  │
-                  ▼
-        ┌─────────────────────┐
-        │ Cloud Function LOAD  │
-        │ Transform & Aggregate│
-        └─────────┬───────────┘
-                  │
-                  ▼
-        ┌─────────────────────┐
-        │     BigQuery         │
-        │  air_quality_history │
-        └─────────┬───────────┘
-                  │
-                  ▼
-        ┌─────────────────────┐
-        │  Looker Studio       │
-        │  Dashboards & Maps   │
-        └─────────────────────┘
-
+┌──────────────────┐
+│ Cloud Scheduler  │
+└─────────┬────────┘
+          │ (HTTP)
+          ▼
+┌────────────────────────┐
+│ Cloud Function EXTRACT │
+│ - Open-Meteo API       │
+│ - GeoNames cities      │
+└─────────┬──────────────┘
+          │
+          ▼
+┌────────────────────────┐
+│ Cloud Storage (GCS)    │
+│ raw/YYYY-MM-DD/        │
+│ JSONL.GZ               │
+└─────────┬──────────────┘
+          │
+          ▼
+┌────────────────────────┐
+│ Cloud Function LOAD    │
+│ Transform & Aggregate  │
+└─────────┬──────────────┘
+          │
+          ▼
+┌────────────────────────┐
+│ BigQuery               │
+│ air_quality_history    │
+└─────────┬──────────────┘
+          │
+          ▼
+┌────────────────────────┐
+│ Looker Studio          │
+│ Dashboards & Maps      │
+└────────────────────────┘
 📦 Sources de données
 1️⃣ Open-Meteo – Air Quality API
 
-API publique utilisée pour récupérer les données horaires :
+API publique utilisée pour récupérer les données horaires de pollution :
 
 PM10
 
@@ -91,7 +91,8 @@ O₃
 
 European AQI
 
-📎 https://open-meteo.com/en/docs/air-quality-api
+📎 Documentation officielle :
+https://open-meteo.com/en/docs/air-quality-api
 
 2️⃣ GeoNames – Cities Database (ZIP)
 
@@ -112,16 +113,14 @@ pays
 
 population
 
-🎯 Filtrage appliqué dans la Cloud Function :
+🎯 Filtrage appliqué dans la Cloud Function EXTRACT :
 
 uniquement les pays européens
 
 uniquement les villes avec population ≥ 100 000 habitants
 
-📁 Exemple :
-
+📁 Exemple de stockage :
 gs://gcs-airquality/cities15000.zip
-
 🔁 Pipeline ETL
 🔹 STEP 1 – EXTRACT (Cloud Function 1)
 
@@ -129,7 +128,7 @@ gs://gcs-airquality/cities15000.zip
 
 Rôle :
 
-Lire la liste des villes depuis GeoNames (ZIP)
+Charger la liste des villes depuis GeoNames (ZIP)
 
 Filtrer les villes européennes ≥ 100k habitants
 
@@ -138,18 +137,13 @@ Appeler l’API Open-Meteo pour chaque ville
 Sauvegarder les données brutes dans GCS
 
 Sortie :
-
 gs://gcs-airquality/raw/YYYY-MM-DD/<run_id>.jsonl.gz
-
-
 Variables d’environnement :
-
 PROJECT_ID
 BUCKET_NAME
 BQ_RUNS_TABLE
 MIN_POPULATION=100000
 THREADS=25
-
 🔹 STEP 2 – LOAD (Cloud Function 2)
 
 📂 cloud_functions/load/main.py
@@ -158,13 +152,13 @@ Rôle :
 
 Lire le dernier fichier RAW du jour
 
-Décompresser le JSONL.GZ
+Décompresser le fichier JSONL.GZ
 
 Transformer les données horaires en agrégats journaliers
 
 Charger les données dans BigQuery
 
-Garantir l’idempotence (suppression de la date avant insert)
+Garantir l’idempotence (suppression des données du jour avant insertion)
 
 🗃️ Stockage des données
 📁 Google Cloud Storage
@@ -172,9 +166,8 @@ gcs-airquality/
 ├── raw/
 │   └── 2026-01-06/
 │       └── <run_id>.jsonl.gz
-├── prod/   (optionnel pour évolutions futures)
+├── prod/        # (futures évolutions)
 └── cities15000.zip
-
 📊 BigQuery
 Table principale : airq_data.air_quality_history
 Champ	Type	Description
@@ -193,25 +186,25 @@ latitude	FLOAT	Latitude
 longitude	FLOAT	Longitude
 ⏰ Orchestration – Cloud Scheduler
 
-1 job quotidien pour EXTRACT
+✅ 1 job quotidien pour EXTRACT
 
-1 job quotidien pour LOAD
+✅ 1 job quotidien pour LOAD
 
-Fuseau horaire : UTC
+🌍 Fuseau horaire : UTC
 
-Exécution automatique sans intervention humaine
+🤖 Exécution automatique sans intervention humaine
 
 📈 Visualisation – Looker Studio
 
 Connexion directe à BigQuery pour :
 
-cartes géographiques (lat / lon)
+🗺️ cartes géographiques (latitude / longitude)
 
-évolution temporelle de la pollution
+📊 évolution temporelle de la pollution
 
-comparaisons entre villes et pays
+🌍 comparaisons entre villes et pays
 
-indicateurs environnementaux
+📈 indicateurs environnementaux
 
 🎯 Pourquoi BigQuery et pas GCS ?
 
@@ -219,7 +212,7 @@ requêtes rapides
 
 agrégations natives
 
-intégration directe Looker
+intégration directe avec Looker Studio
 
 💼 Vision produit / business
 
@@ -231,13 +224,13 @@ intégrée dans des applications météo
 
 utilisée par des ONG
 
-exploitée par des entreprises de mobilité ou santé
+exploitée par des entreprises de mobilité ou de santé
 
 Extensions possibles :
 
-alertes pollution
+alertes pollution en temps réel
 
-prévisions
+prévisions de qualité de l’air
 
 segmentation par quartiers
 
