@@ -1,252 +1,244 @@
-🌍 Air Quality ETL – Europe Cities
-📌 Présentation du projet
+# 🌍 Air Quality ETL — Europe Cities
 
-Ce projet met en place une pipeline ETL complète sur Google Cloud Platform (GCP) permettant de :
+Pipeline **ETL complète sur Google Cloud Platform (GCP)** permettant de collecter, transformer, stocker et visualiser la **qualité de l’air dans les villes européennes**.
 
-Collecter quotidiennement les données de qualité de l’air pour les villes européennes
+Le projet couvre **toute la chaîne data** : API → Cloud Storage → Cloud Functions → BigQuery → Looker Studio / Streamlit.
 
-Transformer et agréger ces données
+---
 
-Les stocker dans BigQuery
+## 🎯 Objectifs du projet
 
-Les visualiser via Looker Studio
+- Collecter quotidiennement les données de pollution de l’air
+- Centraliser les données pour analyse historique
+- Visualiser la pollution par ville et par pays
+- Fournir une solution **scalable, automatisée et exploitable métier**
 
-🎯 Objectif métier
-Fournir une solution fiable, scalable et automatisée pour analyser la pollution de l’air dans les villes européennes et permettre des usages analytiques, décisionnels et commerciaux.
+---
 
-🧠 Pourquoi ce projet est important ?
+## 🌫️ Pourquoi ce projet est important ?
 
 La pollution de l’air est un enjeu majeur pour :
 
-🏥 la santé publique
+- la santé publique
+- les collectivités territoriales
+- les entreprises (mobilité, immobilier, santé)
+- les citoyens
 
-🏛️ les collectivités locales
+Cette solution permet :
 
-🏢 les entreprises
+- de comparer la pollution entre villes européennes
+- de suivre l’évolution temporelle
+- d’identifier des zones à risque
+- de proposer des indicateurs environnementaux commercialisables
 
-👥 les citoyens
+---
 
-Notre solution permet notamment :
+## 🏗️ Architecture globale
 
-de comparer la pollution entre villes
+   Cloud Scheduler
+          |
+          v
+Cloud Function EXTRACT
+(Open-Meteo API + GeoNames)
+          |
+          v
+Cloud Storage (RAW JSONL.GZ)
+          |
+          v
+Cloud Function LOAD
+(Transformation & agrégation)
+          |
+          v
+BigQuery
+(air_quality_history)
+          |
+          v
+Looker Studio / Streamlit
+(Dashboards & cartes)
 
-de suivre son évolution dans le temps
 
-d’identifier des zones à risque
+---
 
-de vendre des indicateurs environnementaux à des acteurs publics ou privés
+## 📦 Sources de données
 
-🏗️ Architecture globale
-┌──────────────────┐
-│ Cloud Scheduler  │
-└─────────┬────────┘
-          │ (HTTP)
-          ▼
-┌────────────────────────┐
-│ Cloud Function EXTRACT │
-│ - Open-Meteo API       │
-│ - GeoNames cities      │
-└─────────┬──────────────┘
-          │
-          ▼
-┌────────────────────────┐
-│ Cloud Storage (GCS)    │
-│ raw/YYYY-MM-DD/        │
-│ JSONL.GZ               │
-└─────────┬──────────────┘
-          │
-          ▼
-┌────────────────────────┐
-│ Cloud Function LOAD    │
-│ Transform & Aggregate  │
-└─────────┬──────────────┘
-          │
-          ▼
-┌────────────────────────┐
-│ BigQuery               │
-│ air_quality_history    │
-└─────────┬──────────────┘
-          │
-          ▼
-┌────────────────────────┐
-│ Looker Studio          │
-│ Dashboards & Maps      │
-└────────────────────────┘
-📦 Sources de données
-1️⃣ Open-Meteo – Air Quality API
+### 1️⃣ Open-Meteo – Air Quality API
 
-API publique utilisée pour récupérer les données horaires de pollution :
+API publique fournissant des données horaires :
 
-PM10
+- PM10
+- PM2.5
+- CO (monoxyde de carbone)
+- NO₂
+- SO₂
+- O₃
+- European AQI
 
-PM2.5
+🔗 https://open-meteo.com/en/docs/air-quality-api
 
-CO (monoxyde de carbone)
+---
 
-NO₂
+### 2️⃣ GeoNames — Cities Database
 
-SO₂
+Fichier utilisé pour référencer les villes :
 
-O₃
+cities15000.zip
 
-European AQI
+Source officielle :  
+🔗 https://download.geonames.org/export/dump/cities15000.zip
 
-📎 Documentation officielle :
-https://open-meteo.com/en/docs/air-quality-api
+Le fichier est stocké dans **Google Cloud Storage** et contient :
 
-2️⃣ GeoNames – Cities Database (ZIP)
+- nom de la ville
+- latitude / longitude
+- code pays
+- population
 
-Nous utilisons la base GeoNames cities15000.zip pour obtenir la liste des villes.
+**Filtrage appliqué dans l’ETL :**
 
-Source officielle :
-👉 https://download.geonames.org/export/dump/cities15000.zip
+- uniquement les pays européens
+- uniquement les villes avec **population ≥ 100 000 habitants**
 
-Le fichier est stocké dans Google Cloud Storage
+---
 
-Il contient toutes les villes mondiales avec :
+## 🔁 Pipeline ETL
 
-latitude
+### 🔹 STEP 1 — EXTRACT
 
-longitude
+**Cloud Function 1**
 
-pays
+- Lit la liste des villes depuis GeoNames (ZIP)
+- Filtre les villes européennes ≥ 100k habitants
+- Appelle l’API Open-Meteo pour chaque ville
+- Stocke les données brutes dans GCS
 
-population
+**Sortie :**
 
-🎯 Filtrage appliqué dans la Cloud Function EXTRACT :
-
-uniquement les pays européens
-
-uniquement les villes avec population ≥ 100 000 habitants
-
-📁 Exemple de stockage :
-gs://gcs-airquality/cities15000.zip
-🔁 Pipeline ETL
-🔹 STEP 1 – EXTRACT (Cloud Function 1)
-
-📂 cloud_functions/extract/main.py
-
-Rôle :
-
-Charger la liste des villes depuis GeoNames (ZIP)
-
-Filtrer les villes européennes ≥ 100k habitants
-
-Appeler l’API Open-Meteo pour chaque ville
-
-Sauvegarder les données brutes dans GCS
-
-Sortie :
 gs://gcs-airquality/raw/YYYY-MM-DD/<run_id>.jsonl.gz
-Variables d’environnement :
-PROJECT_ID
-BUCKET_NAME
-BQ_RUNS_TABLE
-MIN_POPULATION=100000
-THREADS=25
-🔹 STEP 2 – LOAD (Cloud Function 2)
 
-📂 cloud_functions/load/main.py
+**Variables d’environnement :**
 
-Rôle :
+- `PROJECT_ID`
+- `BUCKET_NAME`
+- `BQ_RUNS_TABLE`
+- `MIN_POPULATION=100000`
+- `THREADS=25`
 
-Lire le dernier fichier RAW du jour
+---
 
-Décompresser le fichier JSONL.GZ
+### 🔹 STEP 2 — LOAD
 
-Transformer les données horaires en agrégats journaliers
+**Cloud Function 2**
 
-Charger les données dans BigQuery
+- Récupère le fichier RAW du jour
+- Décompresse le JSONL.GZ
+- Agrège les données horaires en moyennes journalières
+- Charge les données dans BigQuery
+- Garantit l’idempotence (suppression de la date avant insert)
 
-Garantir l’idempotence (suppression des données du jour avant insertion)
+---
 
-🗃️ Stockage des données
-📁 Google Cloud Storage
+## 🗂️ Stockage des données
+
+### 📁 Google Cloud Storage
+
 gcs-airquality/
 ├── raw/
-│   └── 2026-01-06/
-│       └── <run_id>.jsonl.gz
-├── prod/        # (futures évolutions)
+│ └── YYYY-MM-DD/
+│ └── <run_id>.jsonl.gz
+├── prod/ (optionnel)
 └── cities15000.zip
-📊 BigQuery
-Table principale : airq_data.air_quality_history
-Champ	Type	Description
-date	DATE	Jour de mesure
-city	STRING	Nom de la ville
-country	STRING	Code pays
-pm10	FLOAT	Moyenne journalière
-pm2_5	FLOAT	Moyenne journalière
-carbon_monoxide	FLOAT	Moyenne
-nitrogen_dioxide	FLOAT	Moyenne
-sulphur_dioxide	FLOAT	Moyenne
-ozone	FLOAT	Moyenne
-european_aqi	FLOAT	AQI moyen
-population	INTEGER	Population
-latitude	FLOAT	Latitude
-longitude	FLOAT	Longitude
-⏰ Orchestration – Cloud Scheduler
 
-✅ 1 job quotidien pour EXTRACT
 
-✅ 1 job quotidien pour LOAD
+---
 
-🌍 Fuseau horaire : UTC
+### 📊 BigQuery — Table principale
 
-🤖 Exécution automatique sans intervention humaine
+**Dataset :** `airq_data`  
+**Table :** `air_quality_history`
 
-📈 Visualisation – Looker Studio
+| Champ | Type | Description |
+|-----|------|------------|
+| date | DATE | Jour de mesure |
+| city | STRING | Nom de la ville |
+| country | STRING | Code pays |
+| european_aqi | FLOAT | AQI journalier moyen |
+| pm10 | FLOAT | Moyenne PM10 |
+| pm2_5 | FLOAT | Moyenne PM2.5 |
+| carbon_monoxide | FLOAT | Moyenne CO |
+| nitrogen_dioxide | FLOAT | Moyenne NO₂ |
+| sulphur_dioxide | FLOAT | Moyenne SO₂ |
+| ozone | FLOAT | Moyenne O₃ |
+| population | INTEGER | Population |
+| latitude | FLOAT | Latitude |
+| longitude | FLOAT | Longitude |
 
-Connexion directe à BigQuery pour :
+---
 
-🗺️ cartes géographiques (latitude / longitude)
+## ⏰ Orchestration
 
-📊 évolution temporelle de la pollution
+**Cloud Scheduler**
 
-🌍 comparaisons entre villes et pays
+- 1 job quotidien pour EXTRACT
+- 1 job quotidien pour LOAD
+- Exécution automatique en UTC
+- Aucun déclenchement manuel requis
 
-📈 indicateurs environnementaux
+---
 
-🎯 Pourquoi BigQuery et pas GCS ?
+## 📈 Visualisation
 
-requêtes rapides
+### Looker Studio
+- Connexion directe à BigQuery
+- KPI pollution
+- Comparaisons par ville / pays
+- Séries temporelles
 
-agrégations natives
+### Streamlit
+- Carte interactive européenne
+- Filtres par date
+- Points colorés selon European AQI
+- Thème sombre orienté data-viz
 
-intégration directe avec Looker Studio
+---
 
-💼 Vision produit / business
+## 🎨 European AQI — Couleurs utilisées
+
+| EAQI | Qualité | Couleur |
+|----|-------|-------|
+| ≤ 40 | Bon | Bleu |
+| 41 – 80 | Moyen | Orange |
+| > 80 | Mauvais | Rouge |
+
+---
+
+## 💼 Vision produit / business
 
 Cette solution peut être :
 
-vendue à des collectivités
+- vendue aux collectivités locales
+- intégrée à des applications météo
+- utilisée par des ONG environnementales
+- exploitée par des entreprises de santé ou mobilité
 
-intégrée dans des applications météo
+**Extensions possibles :**
 
-utilisée par des ONG
+- alertes pollution
+- prévisions
+- API commerciale
+- segmentation géographique fine
 
-exploitée par des entreprises de mobilité ou de santé
+---
 
-Extensions possibles :
+## 🚀 Déploiement & Code
 
-alertes pollution en temps réel
-
-prévisions de qualité de l’air
-
-segmentation par quartiers
-
-API commerciale
-
-🚀 Déploiement
-
-Tout le code est versionné sur GitHub :
+Repository GitHub :  
 👉 https://github.com/DjeradAy/airquality-etl
 
-Déploiement effectué via :
+Déploiement via :
 
-Cloud Shell
+- Cloud Shell
+- Cloud Functions (Gen 2)
+- Cloud Scheduler
+- BigQuery
+- Looker Studio / Streamlit
 
-Cloud Functions
-
-Cloud Scheduler
-
-BigQuery
